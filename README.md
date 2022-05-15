@@ -15,3 +15,48 @@
        print(data.get('id')) # jeongdaegeun2
        print(data['password']) # 12345
        ```
+   - **SOP (Same Origin Policy)**
+    - 개념
+        - 동일 기원 정책 / 동일 출처 정책
+        - 현대 브라우저에서 지원하는 것으로 JavaScript, Documents, Media 등을 `하나의 Origin(기원)에서 다른 Origin(기원)으로 통신하지 못하도록` 막는 정책
+        - `CSRF(Cross Site Request Forgery)` 나 `CST`  같은 보안상의 이슈로 인해 막는 것
+    - SOP가 없다면?
+        - 우리는 turtle.com에 접속해야 하는데 `turtlee.com`으로 속아 잘못 접속하게 될 수 있다. 이때 우리가 같은 브라우저에서 turtle.com에 로그인을 하거나 로그인중이라면 AJAX 요청 등을 통해 비밀리에 유저의 정보를 탈취하거나 다른 기능들을 수행할 수 있다. (CRSF)
+    - Same Origin이란?
+        - `같은 프로토콜, 호스트, 포트`를 사용해야 함
+        - 기준 URL : http://www.turtle.com/ko/docs
+        
+        | 비교대상 URL | 동일? | 이유 |
+        | --- | --- | --- |
+        | http://www.turtle.com/ko/images | o | 같은 프로토콜, 호스트, 포트 |
+        | http://www.turtle.com:500/ko/docs | x | 포트 불일치 |
+        | http://w.turtle.com/ko/docs | x | 호스트 불일치 |
+        | https://www.turtle.com/ko/docs | x | 프로토콜 불일치 |
+        | http://turtle.com/ko/imgaes | x | 호스트 불일치 |
+- **CORS(Cross-Origin Resource Sharing)**
+    - 개념
+        - 교차 출처 리소스 공유
+        - `추가 HTTP 헤더`를 사용하여 한 출처에서 사용중인 Web Application이 `다른 출처의 선택한 자원에 접근`할 수 있는 권한을 부여하도록 브라우저에 알려주는 체제
+        - 리소스가 `자신의 출처(도메인, 프로토콜, 포트)`와 다를 때 교차 출처 HTTP 요청을 실행
+        - CORS 실패는 오류의 원인이지만, 보안상의 이유로 JavaScript에서는 오류의 상세 정보에 접근할 수 없으며, 알 수 있는 것은 오류가 발생한 것
+            - 정확히 어떤 것이 실패했는지 알아내려면 브라우저의 콘솔 확인 필요
+    - SOP로 인한 제약사항을 완화시켜 주어, 다른 Origin에서도 리소스를 공유할 수 있도록 해줌
+        - Simple Request
+            
+            
+            | Method | GET, HEAD, POST |
+            | --- | --- |
+            | Content-type header | text/plain, 
+            application/x-www-form-unlencoded,
+            multipart/form-data  |
+        - Non Simple Request
+            
+            
+            | Method | 위의 요청 이외의 요청 |
+            | --- | --- |
+            | Content-type header | 위의 타입 이외 타입 |
+- **CSP (Content Securiy Policy)**
+    - 개념
+        - 웹 보안 정책 중 하나로, 주로 `XSS나 Data Injection, Click Jacking` 등 웹 페이지에 `악성 스크립트를 삽입하는 공격기법들을 막기 위해` 사용
+        - `Header`에 CSP의 내용이 작성되며, 특정 리소스가 `어디서 왔는지`를 검사하고 `허용된 범위에 포함되었는지` 검토
+    - [https://csp-evaluator.withgoogle.com/](https://csp-evaluator.withgoogle.com/) 를 통해 CSP가 걸려있는지 확인 가능
