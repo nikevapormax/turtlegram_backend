@@ -1,8 +1,11 @@
+import datetime
 from pymongo import MongoClient
 from flask import Flask, jsonify, request
 import hashlib
 import json
 from flask_cors import CORS
+
+import jwt
 
 
 app = Flask(__name__)
@@ -10,6 +13,8 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"*": {"origins": "*"}})
 client = MongoClient('localhost', 27017)
 db = client.turtle
+
+SECRET_KEY = 'turtle'
 
 
 @app.route("/")
@@ -53,9 +58,28 @@ def sign_up():
     return jsonify({'msg': 'Signup success! Welcome!'})
 
 
-@app.route("/login", methods=['POST'])
-def log_in():
-    return jsonify({'msg': 'Login success! Welcome!'})
+@app.route("/signin", methods=['POST'])
+def sign_in():
+    data = json.loads(request.data)
+    my_email = data.get('email')
+    password_receive = data.get('password')
+    my_pw = hashlib.sha256(password_receive.encode('utf-8')).hexdigest()
+
+    my_signin = db.user.find_one({'email': my_email, 'password': my_pw})
+    print(my_signin)
+
+    if my_signin is not None:
+        payload = {
+            'email': my_email,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=60 * 60 * 24)
+        }
+        print(payload)
+        token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+        # 발급받은 token을 user db의 해당 유저에게 할당
+        db.user.update_one({'email': my_email}, {'$set': {'token': token}})
+        return jsonify({'msg': 'Login success! Welcome!', 'token': token})
+    else:
+        return jsonify({'result': 'fail', 'msg': '아이디/비밀번호가 일치하지 않습니다.'})
 
 
 if __name__ == '__main__':
