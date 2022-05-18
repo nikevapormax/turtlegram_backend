@@ -1,4 +1,5 @@
 import datetime
+from bson import ObjectId
 from pymongo import MongoClient
 from flask import Flask, jsonify, request
 import hashlib
@@ -55,7 +56,7 @@ def sign_up():
     }
     db.user.insert_one(doc)
 
-    return jsonify({'msg': 'Signup success! Welcome!'})
+    return jsonify({'msg': 'Signup success! Welcome!'}), 201
 
 
 @app.route("/signin", methods=['POST'])
@@ -70,6 +71,7 @@ def sign_in():
 
     if my_signin is not None:
         payload = {
+            'id': str(my_signin['_id']),
             'email': my_email,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=60 * 60 * 24)
         }
@@ -77,9 +79,23 @@ def sign_in():
         token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
         # 발급받은 token을 user db의 해당 유저에게 할당
         db.user.update_one({'email': my_email}, {'$set': {'token': token}})
-        return jsonify({'msg': 'Login success! Welcome!', 'token': token})
+        return jsonify({'msg': 'Login success! Welcome!', 'token': token}), 201
     else:
         return jsonify({'result': 'fail', 'msg': '아이디/비밀번호가 일치하지 않습니다.'})
+
+
+@app.route("/getuserinfo", methods=['GET'])
+def get_user_info():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'msg': 'check your token again...'})
+    print('1', token)
+    user_payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+    print('2', user_payload)
+    user_info = db.user.find_one({'_id': ObjectId(user_payload['id'])})
+    print('3', user_info)
+
+    return jsonify({'msg': 'success', 'email': user_info['email']})
 
 
 if __name__ == '__main__':
