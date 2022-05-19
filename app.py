@@ -78,7 +78,7 @@ def sign_up():
     }
     db.user.insert_one(doc)
 
-    return jsonify({'msg': 'Signup success! Welcome!'}), 201
+    return jsonify({'msg': 'Signup success! Welcome!'})
 
 
 @app.route("/signin", methods=['POST'])
@@ -109,7 +109,7 @@ def sign_in():
 @app.route("/getuserinfo", methods=['GET'])
 @authorize
 def get_user_info(user):
-
+    # 여기에는 token을 decode하고 나온 3가지 값이 있다. : _id, email, exp
     user_info = db.user.find_one({'_id': ObjectId(user['id'])})
     print('3', user_info)
 
@@ -128,7 +128,7 @@ def post_article(user):
     db_user = db.user.find_one({'_id': ObjectId(user.get('id'))})
 
     # 현재 시각 표시
-    now_date = datetime.datetime.now().strftime('%H : %M : %S')
+    now_date = datetime.now().strftime('%H : %M : %S')
 
     doc = {
         'title': data.get('title', None),  # 현재는 None 처리를 통해 값이 없더라도 입력 가능
@@ -152,6 +152,18 @@ def get_article():
         article['_id'] = str(article['_id'])
 
     return jsonify({'msg': 'success', 'articles': articles})
+
+
+@app.route('/article/<article_id>', methods=["GET"])
+def get_article_detail(article_id):
+    print(article_id)
+
+    # 위의 get_article 에서 json 형식으로 데이터를 보내기 위해 _id 값을 str화 하였으니, db에서 해당 값을 찾을 땐 꼭 ObjectId화 해야한다.
+    article = db.article.find_one({'_id': ObjectId(article_id)})
+    print(article)
+    # 다시 _id를 str화 해주면서 모든 article에 담겨 있는 값을 json형식으로 반환할 수 있게 해준다.
+    article['_id'] = str(article['_id'])
+    return jsonify({'msg': 'success', 'article': article})
 
 
 if __name__ == '__main__':
