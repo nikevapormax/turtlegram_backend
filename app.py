@@ -13,7 +13,11 @@ import jwt
 
 def authorize(f):
     @wraps(f)
-    def decorated_function():
+    # argument와 key-word argument가 같이 들어가는 경우를 위해 작성
+    # *과 ** 만 있다면 이름은 뒤에 아무거나 붙어도 무방은 함
+    # *args: list 형태로 아무거나 다 들어와 된다.
+    # **kwargs : a = b의 형태로 즉, 키워드의 형태로 몇개씩 들어와도 인식을 하겠다.
+    def decorated_function(*args, **kwargs):
         # 만약 Authorization이 헤더 안에 없다면
         if not 'Authorization' in request.headers:
             abort(401)  # 401 에러를 반환
@@ -25,7 +29,7 @@ def authorize(f):
             user = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
         except:
             abort(401)
-        return f(user)
+        return f(user, *args, **kwargs)
     return decorated_function
 
 
@@ -113,7 +117,8 @@ def get_user_info(user):
     user_info = db.user.find_one({'_id': ObjectId(user['id'])})
     print('3', user_info)
 
-    return jsonify({'msg': 'success', 'email': user_info['email']})
+    # id 값을 반환받아 삭제하기 버튼을 로그인한 사용자가 작성한 글에서만 보일 수 있도록 조치함
+    return jsonify({'msg': 'success', 'email': user_info['email'], 'id': user['id']})
 
 
 @app.route("/article", methods=['POST'])
@@ -157,13 +162,57 @@ def get_article():
 @app.route('/article/<article_id>', methods=["GET"])
 def get_article_detail(article_id):
     print(article_id)
-
     # 위의 get_article 에서 json 형식으로 데이터를 보내기 위해 _id 값을 str화 하였으니, db에서 해당 값을 찾을 땐 꼭 ObjectId화 해야한다.
     article = db.article.find_one({'_id': ObjectId(article_id)})
     print(article)
-    # 다시 _id를 str화 해주면서 모든 article에 담겨 있는 값을 json형식으로 반환할 수 있게 해준다.
-    article['_id'] = str(article['_id'])
-    return jsonify({'msg': 'success', 'article': article})
+
+    if article:
+        # 다시 _id를 str화 해주면서 모든 article에 담겨 있는 값을 json형식으로 반환할 수 있게 해준다.
+        article['_id'] = str(article['_id'])
+        return jsonify({'msg': 'success', 'article': article})
+    else:
+        return jsonify({'msg': 'fail'}), 404
+
+
+@app.route('/article/<article_id>', methods=["PATCH"])
+@authorize
+def patch_article_detail(user, article_id):
+    data = json.loads(request.data)
+
+    # 게시글을 변경하게 되면 제목과 내용만 바뀌니까 그 둘을 data에서 뽑아온다.
+    title = data.get("title")
+    content = data.get("content")
+
+    # filter 값으로 게시글의 고유값인 옵젝아이디, 그리고 해당 글을 작성한 유저를 찾아야 하므로 authorize의 user에 들어있는 id 값을 사용한다.
+    # 여기서 잠깐! 왜 유저의 아이디는 옵젝아이디가 아니죠? -> article db에는 유저의 아이디가 string으로 저장되어 있다. 물론 user db에서 값을 빼온다하면 옵젝아이디로 빼야함!
+    article = db.article.update_one(
+        {"_id": ObjectId(article_id), "user": user["id"]}, {"$set": {"title": title, "content": content}})
+
+    # 위의 업데이트가 성공적으로 이루어졌다면 1이 출력되고, 아니라면 0이 출력됨
+    print(article.matched_count)
+
+    # 이곳 POSTMAN 사용법 :
+    # 해당 게시글의 아이디를 찾고, url에 넣어준다. 이러고 보내보면 오류가 난다. 왜냐? authorization에 글쓴이의 정보가 없기 때문이다.
+    # 아예 _id 값이 불분명하다고 생각된다면 다음과 같이 처음부터 시작하자
+    # /signin -> _id 추출 -> /get_articles -> 게시글의 _id 추출 -> /get_article_detail -> 게시글의  _id 값을 넣어 정보 확인
+    # -> patch_article로 가 Headers에 Authorization 값을 넣어줌(사용자의 _id값) -> send -> 'msg': 'success' -> app.py로 와서 article.matched_count 확인
+    if article.matched_count:
+        return jsonify({'msg': 'success'})
+    else:
+        return jsonify({'msg': 'fail'}), 403
+
+
+@app.route('/article/<article_id>', methods=["DELETE"])
+@authorize
+def delete_article_detail(user, article_id):
+    article = db.article.delete_one(
+        {"_id": ObjectId(article_id), "user": user['id']})
+
+    # 위의 수정하기 경우와 똑같다. 게시글이 없거나 다른사람의 글을 지우려 하거나 한다면 0이 출력되고, 똑바로 접근했다면 1이 나온다.
+    if article.deleted_count:
+        return jsonify({'msg': 'success'})
+    else:
+        return jsonify({'msg': 'fail'}), 403
 
 
 if __name__ == '__main__':
