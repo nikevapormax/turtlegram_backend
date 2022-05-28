@@ -164,14 +164,17 @@ def get_article():
 def get_article_detail(article_id):
     # 위의 get_article 에서 json 형식으로 데이터를 보내기 위해 _id 값을 str화 하였으니, db에서 해당 값을 찾을 땐 꼭 ObjectId화 해야한다.
     article = db.article.find_one({'_id': ObjectId(article_id)})
+    # 댓글 찾아오기
     comments = list(db.comment.find({"article": article_id}))
-    print(article)
+    # 좋아요 개수 가져오기
+    likes = list(db.like.find({'article': article_id}))
 
     if article:
         # 다시 _id를 str화 해주면서 모든 article에 담겨 있는 값을 json형식으로 반환할 수 있게 해준다.
         article['_id'] = str(article['_id'])
         # dumps -> ObjectId를 json화 해주는 기능
         article['comments'] = json.loads(dumps(comments))
+        article['likes_count'] = len(likes)
         return jsonify({'msg': 'success', 'article': article})
     else:
         return jsonify({'msg': 'fail'}), 404
@@ -245,6 +248,51 @@ def get_comment(article_id):
     comments = list(db.comment.find({"article": article_id}))
     json_comments = json.loads(dumps(comments))
     return jsonify({'msg': 'success', 'comments': json_comments})
+
+
+# '좋아요'된 아티클과 좋아요를 누른 사람을 반영하는 테이블 생성
+@app.route('/article/<article_id>/like', methods=["POST"])
+@authorize
+def post_like(user, article_id):
+    print(user, article_id)
+    db_user = db.user.find_one({'_id': ObjectId(user['id'])})
+    time = datetime.now().strftime("%H:%M:%S")
+    doc = {
+        'article': article_id,
+        'user': user['id'],
+        'email': db_user['email'],
+        'time': time
+    }
+    db.like.insert_one(doc)
+
+    return jsonify({'msg': 'success'})
+
+
+# 좋아요 취소 기능
+@app.route('/article/<article_id>/like', methods=["DELETE"])
+@authorize
+def delete_like(user, article_id):
+    print(user, article_id)
+
+    result = db.like.delete_one({'article': article_id, 'user': user['id']})
+    # 삭제 성공 시 카운트값은 1, 실패 시 카운트값은 0
+    # python에서 1은 True 이므로 아래와 같이 작성
+    if result.deleted_count:
+        return jsonify({'msg': 'delete success'})
+    else:
+        return jsonify({'msg': 'delete fail'}), 400
+
+
+# 좋아요 여부를 체크해주는 기능
+@app.route('/article/<article_id>/like', methods=["GET"])
+@authorize
+def get_like(user, article_id):
+
+    result = db.like.find_one({'article': article_id, 'user': user['id']})
+    if result:
+        return jsonify({'msg': 'success', 'liked': True})
+    else:
+        return jsonify({'msg': 'fail', 'liked': False})
 
 
 if __name__ == '__main__':
