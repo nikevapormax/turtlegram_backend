@@ -79,7 +79,9 @@ def sign_up():
 
     doc = {
         'email': email,
-        'password': password_hash
+        'password': password_hash,
+        'follower_count': 0,
+        'followed_count': 0
     }
     db.user.insert_one(doc)
 
@@ -293,6 +295,54 @@ def get_like(user, article_id):
         return jsonify({'msg': 'success', 'liked': True})
     else:
         return jsonify({'msg': 'fail', 'liked': False})
+
+
+# 개인 프로필페이지. 그냥 보는 것이기 때문에 따로 인증절차는 거치지 않도록 함.
+@app.route('/user/<user_id>', methods=['GET'])
+def user_profile(user_id):
+    user = db.user.find_one({'_id': ObjectId(user_id)}, {'password': False})
+    user_articles = list(db.article.find({'user': user_id}))
+    # 위에서 찾은 article의 값들을 user 안에 articles라는 새로운 키값을 만들고 저장
+    user['articles'] = user_articles
+
+    # follow 내용 화면에 표시하기 위해 불러와야 하는 것들
+    # 나의 팔로워들
+    user_followers = list(db.follow.find(
+        {'followed': user_id}, {'_id': False, 'followed': False}))
+    # 내가 팔로잉하는 사람들
+    user_following = list(db.follow.find(
+        {'follower': user_id}, {'_id': False, 'follower': False}))
+
+    user['followers'] = user_followers
+    user['following'] = user_following
+
+    # 위에서 찾아온 user의 id는 현재 옵젝 아이디이기 때문에 json 형식으로 넘기기 위해 dumps를 사용
+    return jsonify({'msg': 'success', 'user': json.loads(dumps(user))})
+
+
+@app.route('/user/<user_id>/follow', methods=['POST'])
+@authorize
+def follow(user, user_id):  # user는 authorize에서 온 팔로우를 하는 주체
+    # 팔로워는 user 본인이 되어야 함
+    follower = db.user.find_one(
+        {'_id': ObjectId(user['id'])}, {'password': False})
+    followed = db.user.find_one(
+        {'_id': ObjectId(user_id)}, {'password': False})
+    doc = {
+        'follower': str(follower['_id']),
+        # 물론 내 생각과 같이 user_id를 써도 되지만, 만약 없는 id를 가지고 검색했을 경우 걸러내지 못함
+        'followed': str(followed['_id'])
+        # 우리는 key값을 써서 괜찮지만, 인스타처럼 username으로 검색하게 되면 그걸 가지고 키값을 찾아 사용하는게 좋다.
+    }
+
+    result = db.follow.find_one(doc)
+    if not result:
+        follow = db.follow.insert_one(doc)
+        # 백앤드에서 변경된 사항을 돌려줌 -> 'follow': json.loads(dumps(doc)) -> 프론트에서 테스트하기 편함(돌려주는게 맞음)
+        return jsonify({'msg': 'success', 'follow': json.loads(dumps(doc))})
+    else:
+        db.follow.delete_one(doc)
+        return jsonify({'msg': 'deleted', 'follow': json.loads(dumps(doc))})
 
 
 if __name__ == '__main__':
