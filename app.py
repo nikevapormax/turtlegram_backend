@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from flask import Flask, abort, jsonify, request
 import hashlib
 import json
+from bson.json_util import loads, dumps
 from flask_cors import CORS
 import jwt
 
@@ -161,14 +162,16 @@ def get_article():
 
 @app.route('/article/<article_id>', methods=["GET"])
 def get_article_detail(article_id):
-    print(article_id)
     # 위의 get_article 에서 json 형식으로 데이터를 보내기 위해 _id 값을 str화 하였으니, db에서 해당 값을 찾을 땐 꼭 ObjectId화 해야한다.
     article = db.article.find_one({'_id': ObjectId(article_id)})
+    comments = list(db.comment.find({"article": article_id}))
     print(article)
 
     if article:
         # 다시 _id를 str화 해주면서 모든 article에 담겨 있는 값을 json형식으로 반환할 수 있게 해준다.
         article['_id'] = str(article['_id'])
+        # dumps -> ObjectId를 json화 해주는 기능
+        article['comments'] = json.loads(dumps(comments))
         return jsonify({'msg': 'success', 'article': article})
     else:
         return jsonify({'msg': 'fail'}), 404
@@ -213,6 +216,35 @@ def delete_article_detail(user, article_id):
         return jsonify({'msg': 'success'})
     else:
         return jsonify({'msg': 'fail'}), 403
+
+
+# 댓글 달기 기능
+@app.route('/article/<article_id>/comment', methods=['POST'])
+@authorize
+def post_comment(user, article_id):
+    data = json.loads(request.data)
+    print("댓글달기", data)
+
+    db_user = db.user.find_one({'_id': ObjectId(user.get('id'))})
+    now = datetime.now().strftime("%H:%M:%s")
+    doc = {
+        'article': article_id,
+        'content': data.get('content', None),
+        'user': user['id'],
+        'user_email': db_user['email'],
+        'time': now
+    }
+    print(doc)
+
+    db.comment.insert_one(doc)
+    return jsonify({'msg': 'success'})
+
+
+@app.route('/article/<article_id>/comment', methods=['GET'])
+def get_comment(article_id):
+    comments = list(db.comment.find({"article": article_id}))
+    json_comments = json.loads(dumps(comments))
+    return jsonify({'msg': 'success', 'comments': json_comments})
 
 
 if __name__ == '__main__':
